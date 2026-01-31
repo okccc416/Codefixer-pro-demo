@@ -54,7 +54,7 @@ export default function CodeActionBar({ code, language }: CodeActionBarProps) {
     addTerminalOutput(`\x1b[1;36m╚════════════════════════════════════════╝\x1b[0m\n\n`);
 
     try {
-      const response = await executeCode(code, apiKey);
+      const response = await executeCode(code, apiKey, apiProvider);
 
       if (response.success && response.data) {
         // Show execution time
@@ -64,16 +64,46 @@ export default function CodeActionBar({ code, language }: CodeActionBarProps) {
         
         addTerminalOutput(`\x1b[1;32m✓ Execution completed ${execTime}\x1b[0m\n\n`);
         
-        // Show output
-        if (response.data.output) {
+        // Parse E2B CodeInterpreter response (SDK v2)
+        // Response format: { output, stdout, stderr, logs, results }
+        let hasOutput = false;
+        
+        // Method 1: Combined output field (preferred)
+        if (response.data.output && response.data.output.trim()) {
           addTerminalOutput(`\x1b[1;37mOutput:\x1b[0m\n`);
           addTerminalOutput(`${response.data.output}\n`);
+          hasOutput = true;
         }
         
-        // Show stderr if exists (but not error)
+        // Method 2: Separate stdout field (fallback)
+        if (response.data.stdout && response.data.stdout.trim()) {
+          if (!hasOutput) {
+            addTerminalOutput(`\x1b[1;37mOutput:\x1b[0m\n`);
+          }
+          addTerminalOutput(`${response.data.stdout}\n`);
+          hasOutput = true;
+        }
+        
+        // Method 3: Parse logs structure (E2B SDK v2 raw format)
+        if (!hasOutput && response.data.logs) {
+          const logs = response.data.logs;
+          if (logs.stdout && Array.isArray(logs.stdout) && logs.stdout.length > 0) {
+            addTerminalOutput(`\x1b[1;37mOutput:\x1b[0m\n`);
+            addTerminalOutput(logs.stdout.join("\n") + "\n");
+            hasOutput = true;
+          }
+        }
+        
+        // Show stderr warnings (if exists)
         if (response.data.stderr && response.data.stderr.trim()) {
           addTerminalOutput(`\n\x1b[1;33mWarnings/Info:\x1b[0m\n`);
           addTerminalOutput(`${response.data.stderr}\n`);
+          hasOutput = true;
+        }
+        
+        // Fallback: If no output at all, show success message
+        if (!hasOutput) {
+          addTerminalOutput(`\x1b[1;90mCode executed successfully (no output)\x1b[0m\n`);
         }
         
         addTerminalOutput(`\n$ `);
@@ -151,7 +181,7 @@ export default function CodeActionBar({ code, language }: CodeActionBarProps) {
       // First, try to execute the code to get the error
       addTerminalOutput(`\x1b[1;33m[Step 1] Executing original code to identify errors...\x1b[0m\n`);
       
-      const executeResponse = await executeCode(code, apiKey);
+      const executeResponse = await executeCode(code, apiKey, apiProvider);
       
       let errorMessage = "";
       if (!executeResponse.success || (executeResponse.data && executeResponse.data.error)) {
@@ -174,7 +204,7 @@ export default function CodeActionBar({ code, language }: CodeActionBarProps) {
       // Now call the AI Agent to fix it
       addTerminalOutput(`\x1b[1;33m[Step 2] Starting AI Agent to fix the code...\x1b[0m\n\n`);
       
-      const response = await fixCodeWithAgent(code, errorMessage, apiKey);
+      const response = await fixCodeWithAgent(code, errorMessage, apiKey, apiProvider);
 
       if (response.success && response.data) {
         const { fixedCode, logs, attempts } = response.data;
@@ -265,15 +295,57 @@ export default function CodeActionBar({ code, language }: CodeActionBarProps) {
 
     setIsAnalyzing(true);
 
+    // Show analysis in terminal
+    addTerminalOutput(`\n\x1b[1;34m╔════════════════════════════════════════╗\x1b[0m\n`);
+    addTerminalOutput(`\x1b[1;34m║  Code Analysis (AI-powered)            ║\x1b[0m\n`);
+    addTerminalOutput(`\x1b[1;34m╚════════════════════════════════════════╝\x1b[0m\n\n`);
+    addTerminalOutput(`Analyzing ${code.length} characters of ${language} code...\n\n`);
+
     try {
       const response = await analyzeCode(code, apiKey, apiProvider);
 
       if (response.success && response.data) {
+        // Safely extract analysis string
+        let analysisText = "";
+        
+        // Handle different response formats
+        if (typeof response.data === "string") {
+          analysisText = response.data;
+        } else if (typeof response.data.analysis === "string") {
+          analysisText = response.data.analysis;
+        } else if (typeof response.data === "object") {
+          // If it's an object, stringify it for debugging
+          analysisText = JSON.stringify(response.data, null, 2);
+        } else {
+          analysisText = "Analysis completed (no text output)";
+        }
+
+        // Display in terminal
+        addTerminalOutput(`\x1b[1;32m✓ Analysis Complete\x1b[0m\n\n`);
+        addTerminalOutput(`\x1b[1;37mResults:\x1b[0m\n`);
+        addTerminalOutput(`${analysisText}\n\n`);
+        
+        // Handle suggestions if present
+        if (response.data.suggestions && Array.isArray(response.data.suggestions)) {
+          addTerminalOutput(`\x1b[1;33mSuggestions:\x1b[0m\n`);
+          response.data.suggestions.forEach((suggestion: string, index: number) => {
+            addTerminalOutput(`  ${index + 1}. ${suggestion}\n`);
+          });
+          addTerminalOutput(`\n`);
+        }
+        
+        addTerminalOutput(`$ `);
+
         toast({
-          title: "Analysis Complete",
-          description: response.data.analysis,
+          title: "✓ Analysis Complete",
+          description: analysisText.length > 100 
+            ? `${analysisText.substring(0, 100)}... (see terminal for full results)`
+            : analysisText,
         });
       } else {
+        addTerminalOutput(`\x1b[1;31m✗ Analysis failed\x1b[0m\n`);
+        addTerminalOutput(`Error: ${response.error || "Unknown error"}\n\n$ `);
+        
         toast({
           title: "Analysis Failed",
           description: response.error || "Failed to analyze code",
@@ -281,9 +353,14 @@ export default function CodeActionBar({ code, language }: CodeActionBarProps) {
         });
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      
+      addTerminalOutput(`\x1b[1;31m✗ Request failed\x1b[0m\n`);
+      addTerminalOutput(`${errorMessage}\n\n$ `);
+      
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

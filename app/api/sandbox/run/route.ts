@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CodeInterpreter } from "@e2b/code-interpreter";
+import { Sandbox } from "@e2b/code-interpreter";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // 60 seconds timeout
@@ -26,13 +26,16 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    // Verify API key from user's header
-    const userApiKey = request.headers.get("x-user-api-key");
-    if (!userApiKey) {
+    // CRITICAL: Read provider and API key from headers (BYOK)
+    // Note: For E2B execution, we validate these but use server's E2B key
+    const provider = request.headers.get("x-provider");
+    const userApiKey = request.headers.get("x-api-key");
+    
+    if (!userApiKey || !provider) {
       return NextResponse.json(
         {
           success: false,
-          error: "API key is required. Please configure your API key in Settings.",
+          error: "Missing API key or provider. Please configure in Settings.",
         } as RunCodeResponse,
         { status: 401 }
       );
@@ -77,15 +80,15 @@ export async function POST(request: NextRequest) {
 
     console.log(`[E2B] Executing Python code (${code.length} chars)...`);
 
-    // Create E2B sandbox
-    const sandbox = await CodeInterpreter.create({
+    // Create E2B Sandbox
+    const sandbox = await Sandbox.create({
       apiKey: e2bApiKey,
       timeoutMs: 50000, // 50 seconds
     });
 
     try {
-      // Execute code in sandbox
-      const execution = await sandbox.notebook.execCell(code, {
+      // Execute code using runCode (E2B SDK v2 API)
+      const execution = await sandbox.runCode(code, {
         onStderr: (stderr) => console.log("[E2B stderr]", stderr),
         onStdout: (stdout) => console.log("[E2B stdout]", stdout),
       });
@@ -144,9 +147,9 @@ export async function POST(request: NextRequest) {
         { status: 200 }
       );
     } finally {
-      // Always close the sandbox
-      await sandbox.close();
-      console.log("[E2B] Sandbox closed");
+      // Always kill the sandbox (SDK v2 method)
+      await sandbox.kill();
+      console.log("[E2B] Sandbox terminated");
     }
   } catch (error) {
     console.error("[E2B] Error:", error);

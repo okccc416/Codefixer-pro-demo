@@ -2,13 +2,13 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // Skip type checking and linting during build (hackathon mode)
+  // Skip type checking during build (hackathon mode)
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+  
+  // Add empty turbopack config to silence warning
+  turbopack: {},
   
   webpack: (config) => {
     config.resolve.fallback = {

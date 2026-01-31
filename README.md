@@ -57,13 +57,15 @@ Open [http://localhost:3000](http://localhost:3000) to see the IDE.
 5. Start using AI-powered features!
 
 **Supported Features:**
+- 💚 **Google Gemini** - FREE AI coding (15 req/min)
 - ▶️ **Run** - Execute Python code in E2B sandbox
-- 🧠 **AI Fix** - Autonomous debugging with Diff Editor
+- 🧠 **AI Fix** - Autonomous debugging with ReAct loop
 - 🔀 **Diff View** - Side-by-side code comparison
 - ✨ **Thinking UI** - Real-time agent progress display
 - 💬 **Chat** - AI assistant conversations
 
 📖 **Detailed Guides**: 
+- [GEMINI_QUICK_START.md](./GEMINI_QUICK_START.md) - 💚 Get started with FREE Gemini!
 - [BYOK_GUIDE.md](./BYOK_GUIDE.md) - API Key configuration
 - [E2B_INTEGRATION.md](./E2B_INTEGRATION.md) - Code execution setup
 - [AI_AGENT_GUIDE.md](./AI_AGENT_GUIDE.md) - Autonomous debugging agent
@@ -137,9 +139,15 @@ Contributions are welcome! Feel free to submit issues and pull requests.
 
 ---
 
-Built with ❤️ using Next.js 14 and modern React
+Built with ❤️ using Next.js 16 and modern React
 
 **Latest Updates:**
+- **v1.6.2:** 🎯 Terminal & Chat Fix - 终端输出 + AI 助手完全修复
+- **v1.6.1:** 🔧 Bug Fixes - Terminal output & API stream error resolved
+- **v1.6:** 🚀 Gemini 2.5 + E2B API Fix - Latest model & `runCode()` method
+- **v1.5.2:** 🛠️ E2B SDK Fix - Updated to `.kill()` method
+- **v1.5.1:** 🔧 Model Version Fix - Stable `gemini-1.5-flash-latest`
+- **v1.5:** 💚 Google Gemini - FREE AI coding with strict BYOK!
 - **v1.4:** 🎨 Diff Editor + Thinking UI - Beautiful UX for AI fixes!
 - **v1.3:** 🤖 AI Agent - Autonomous debugging with ReAct loop!
 - **v1.2:** 🚀 E2B Code Interpreter - Real Python execution!

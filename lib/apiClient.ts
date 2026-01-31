@@ -8,6 +8,7 @@ export interface ApiRequestConfig {
   headers?: Record<string, string>;
   body?: any;
   apiKey: string;
+  provider: "openai" | "google";
 }
 
 export interface ApiResponse<T = any> {
@@ -24,9 +25,9 @@ export async function apiRequest<T = any>(
   endpoint: string,
   config: ApiRequestConfig
 ): Promise<ApiResponse<T>> {
-  const { method = "GET", headers = {}, body, apiKey } = config;
+  const { method = "GET", headers = {}, body, apiKey, provider } = config;
 
-  // Validate API key
+  // Validate API key and provider
   if (!apiKey || apiKey.trim().length === 0) {
     return {
       success: false,
@@ -35,10 +36,19 @@ export async function apiRequest<T = any>(
     };
   }
 
+  if (!provider) {
+    return {
+      success: false,
+      error: "Provider is required. Please configure it in Settings.",
+      statusCode: 401,
+    };
+  }
+
   try {
     const requestHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      "x-user-api-key": apiKey, // BYOK header
+      "x-api-key": apiKey,        // BYOK: User's API key
+      "x-provider": provider,     // BYOK: User's chosen provider
       ...headers,
     };
 
@@ -58,11 +68,20 @@ export async function apiRequest<T = any>(
     if (!response.ok) {
       let errorMessage = `Request failed with status ${statusCode}`;
       
+      // Clone response FIRST to avoid "Body stream already read" error
+      const responseClone = response.clone();
+      
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || errorData.error || errorMessage;
       } catch {
-        errorMessage = await response.text() || errorMessage;
+        // If JSON parsing fails, try text (using the clone)
+        try {
+          const text = await responseClone.text();
+          errorMessage = text || errorMessage;
+        } catch {
+          // If both fail, use default message
+        }
       }
 
       return {
@@ -101,11 +120,13 @@ export async function apiRequest<T = any>(
  */
 export async function executeCode(
   code: string,
-  apiKey: string
+  apiKey: string,
+  provider: "openai" | "google"
 ): Promise<ApiResponse<{ output: string; error?: string; stdout?: string; stderr?: string; executionTime?: number }>> {
   return apiRequest("/api/sandbox/run", {
     method: "POST",
     apiKey,
+    provider,
     body: { code, language: "python" },
   });
 }
@@ -124,7 +145,8 @@ export interface AgentLog {
 export async function fixCodeWithAgent(
   code: string,
   error: string,
-  apiKey: string
+  apiKey: string,
+  provider: "openai" | "google"
 ): Promise<ApiResponse<{ 
   fixedCode: string; 
   logs: AgentLog[];
@@ -133,6 +155,7 @@ export async function fixCodeWithAgent(
   return apiRequest("/api/agent/fix", {
     method: "POST",
     apiKey,
+    provider,
     body: { code, error, language: "python" },
   });
 }
@@ -144,11 +167,12 @@ export async function chatWithAI(
   message: string,
   history: Array<{ role: string; content: string }>,
   apiKey: string,
-  provider: "openai" | "anthropic"
+  provider: "openai" | "google"
 ): Promise<ApiResponse<{ response: string }>> {
   return apiRequest("/api/chat", {
     method: "POST",
     apiKey,
+    provider,
     body: { message, history, provider },
   });
 }
@@ -159,11 +183,12 @@ export async function chatWithAI(
 export async function analyzeCode(
   code: string,
   apiKey: string,
-  provider: "openai" | "anthropic"
+  provider: "openai" | "google"
 ): Promise<ApiResponse<{ analysis: string; suggestions: string[] }>> {
   return apiRequest("/api/analyze", {
     method: "POST",
     apiKey,
+    provider,
     body: { code, provider },
   });
 }
@@ -175,11 +200,12 @@ export async function generateCode(
   prompt: string,
   language: string,
   apiKey: string,
-  provider: "openai" | "anthropic"
+  provider: "openai" | "google"
 ): Promise<ApiResponse<{ code: string; explanation: string }>> {
   return apiRequest("/api/generate", {
     method: "POST",
     apiKey,
+    provider,
     body: { prompt, language, provider },
   });
 }

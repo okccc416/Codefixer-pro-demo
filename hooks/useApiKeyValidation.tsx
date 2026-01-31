@@ -5,6 +5,7 @@
 
 import { useIDEStore } from "@/store/useIDEStore";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 
 export function useApiKeyValidation() {
   const { apiKey, hasApiKey, setSettingsOpen } = useIDEStore();
@@ -20,10 +21,14 @@ export function useApiKeyValidation() {
         title: "API Key Required",
         description: `Please configure your API key in Settings to use ${actionName}.`,
         variant: "destructive",
-        action: {
-          label: "Open Settings",
-          onClick: () => setSettingsOpen(true),
-        },
+        action: (
+          <ToastAction 
+            altText="Go to settings to configure API key"
+            onClick={() => setSettingsOpen(true)}
+          >
+            Open Settings
+          </ToastAction>
+        ),
       });
       return false;
     }

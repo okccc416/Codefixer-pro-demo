@@ -11,10 +11,27 @@ export default function TerminalPanel() {
   const terminalRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
-  const { addTerminalOutput, toggleTerminal } = useIDEStore();
+  const lastOutputIndexRef = useRef<number>(0);
+  
+  // ✅ CRITICAL FIX: Subscribe to terminalOutput from Zustand
+  const { addTerminalOutput, toggleTerminal, terminalOutput } = useIDEStore();
 
   useEffect(() => {
-    if (!terminalRef.current || xtermRef.current) return;
+    console.log("[TerminalPanel] useEffect triggered");
+    console.log("[TerminalPanel] terminalRef.current:", terminalRef.current);
+    console.log("[TerminalPanel] xtermRef.current:", xtermRef.current);
+    
+    if (!terminalRef.current) {
+      console.error("[TerminalPanel] terminalRef.current is null!");
+      return;
+    }
+    
+    if (xtermRef.current) {
+      console.log("[TerminalPanel] xterm already initialized, skipping");
+      return;
+    }
+
+    console.log("[TerminalPanel] Initializing xterm...");
 
     // Initialize xterm.js with ANSI support
     const terminal = new Terminal({
@@ -49,19 +66,85 @@ export default function TerminalPanel() {
       convertEol: true,
     });
 
+    console.log("[TerminalPanel] Terminal instance created");
+
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);
+    console.log("[TerminalPanel] FitAddon loaded");
 
-    terminal.open(terminalRef.current);
-    fitAddon.fit();
+    try {
+      console.log("[TerminalPanel] Container HTML before open:", terminalRef.current.innerHTML);
+      console.log("[TerminalPanel] Container in DOM:", document.body.contains(terminalRef.current));
+      console.log("[TerminalPanel] Opening terminal...");
+      
+      // CRITICAL: Ensure terminal opens synchronously
+      terminal.open(terminalRef.current);
+      
+      console.log("[TerminalPanel] Terminal.open() completed");
+      console.log("[TerminalPanel] Container HTML after open:", terminalRef.current.innerHTML);
+      console.log("[TerminalPanel] Container children:", terminalRef.current.children.length);
+      
+      // Inspect what xterm created
+      Array.from(terminalRef.current.children).forEach((child, i) => {
+        console.log(`[TerminalPanel] Child ${i}:`, child.className, child.tagName);
+      });
+      
+      // Check if elements were created immediately
+      let canvas = terminalRef.current.querySelector('canvas');
+      console.log("[TerminalPanel] Canvas found (immediate):", !!canvas);
+      
+      // Wait a bit for xterm to create DOM elements (might be async)
+      setTimeout(() => {
+        canvas = terminalRef.current?.querySelector('canvas');
+        console.log("[TerminalPanel] Canvas found (delayed):", !!canvas);
+        console.log("[TerminalPanel] Canvas dimensions:", canvas?.width, "x", canvas?.height);
+        
+        // Check what elements were actually created
+        const xtermElements = terminalRef.current?.querySelectorAll('*');
+        console.log("[TerminalPanel] Total elements created:", xtermElements?.length);
+        console.log("[TerminalPanel] xterm element:", terminalRef.current?.querySelector('.xterm'));
+        console.log("[TerminalPanel] xterm-screen:", terminalRef.current?.querySelector('.xterm-screen'));
+        
+        // Log innerHTML to see actual structure
+        console.log("[TerminalPanel] Container innerHTML:", terminalRef.current?.innerHTML.substring(0, 200));
+      }, 100);
+    } catch (error) {
+      console.error("[TerminalPanel] Error opening terminal:", error);
+      return;
+    }
+    
+    // CRITICAL FIX: Force terminal to be visible and properly sized
+    console.log("[TerminalPanel] Setting initial size...");
+    
+    // Step 1: Set initial size explicitly
+    terminal.resize(80, 24);
+    console.log("[TerminalPanel] Initial resize to 80x24");
+    
+    // Step 2: Fit after DOM is ready
+    setTimeout(() => {
+      try {
+        console.log("[TerminalPanel] Attempting fit...");
+        fitAddon.fit();
+        console.log("[TerminalPanel] Fit completed, rows:", terminal.rows, "cols:", terminal.cols);
+        
+        // Step 3: Force refresh
+        terminal.refresh(0, terminal.rows - 1);
+        console.log("[TerminalPanel] Terminal refreshed");
+      } catch (error) {
+        console.error("[TerminalPanel] Fit error:", error);
+      }
+    }, 200);
 
     // Welcome message
+    console.log("[TerminalPanel] Writing welcome message...");
     terminal.writeln("\x1b[1;36m╔═══════════════════════════════════════════╗\x1b[0m");
     terminal.writeln("\x1b[1;36m║     Welcome to Codex IDE Terminal        ║\x1b[0m");
     terminal.writeln("\x1b[1;36m╚═══════════════════════════════════════════╝\x1b[0m");
     terminal.writeln("");
     terminal.writeln("\x1b[1;32mSystem ready.\x1b[0m Type commands below:");
     terminal.write("\r\n$ ");
+    
+    console.log("[TerminalPanel] Welcome message written");
 
     let currentLine = "";
 
@@ -101,21 +184,99 @@ export default function TerminalPanel() {
 
     // Handle resize
     const handleResize = () => {
-      fitAddon.fit();
+      try {
+        fitAddon.fit();
+      } catch (error) {
+        console.error("[TerminalPanel] Fit error:", error);
+      }
     };
 
     window.addEventListener("resize", handleResize);
-    const resizeObserver = new ResizeObserver(handleResize);
+    const resizeObserver = new ResizeObserver(() => {
+      setTimeout(handleResize, 50); // Debounce resize
+    });
     if (terminalRef.current) {
       resizeObserver.observe(terminalRef.current);
     }
 
     return () => {
+      console.log("[TerminalPanel] Cleanup function called");
       window.removeEventListener("resize", handleResize);
       resizeObserver.disconnect();
-      terminal.dispose();
+      
+      // CRITICAL: Don't dispose if container is still in DOM
+      if (terminalRef.current && document.body.contains(terminalRef.current)) {
+        console.log("[TerminalPanel] Container still in DOM, NOT disposing");
+        // Don't dispose - let it persist
+      } else {
+        console.log("[TerminalPanel] Container removed, disposing terminal");
+        terminal.dispose();
+        xtermRef.current = null;
+      }
     };
-  }, [addTerminalOutput]);
+  }, []);
+
+  // ✅ CRITICAL FIX: Listen to terminalOutput changes and write to xterm
+  useEffect(() => {
+    if (!xtermRef.current) {
+      console.log("[TerminalPanel] xterm not ready yet");
+      return;
+    }
+    
+    const terminal = xtermRef.current;
+    
+    // CRITICAL: Check if terminal is still attached to DOM
+    if (!terminalRef.current || !document.body.contains(terminalRef.current)) {
+      console.error("[TerminalPanel] Terminal container not in DOM!");
+      return;
+    }
+    
+    // Check if xterm element exists in container
+    const xtermElement = terminalRef.current.querySelector('.xterm');
+    if (!xtermElement) {
+      console.error("[TerminalPanel] xterm element missing, reinitializing...");
+      // Force re-open
+      try {
+        terminal.open(terminalRef.current);
+        console.log("[TerminalPanel] Terminal re-opened");
+      } catch (error) {
+        console.error("[TerminalPanel] Failed to re-open:", error);
+      }
+    }
+    
+    console.log("[TerminalPanel] terminalOutput changed:", terminalOutput.length, "items", 
+                "lastIndex:", lastOutputIndexRef.current);
+    
+    // Write new outputs to terminal
+    for (let i = lastOutputIndexRef.current; i < terminalOutput.length; i++) {
+      const output = terminalOutput[i];
+      
+      console.log("[TerminalPanel] Writing output", i, ":", 
+                  output.content.substring(0, 50).replace(/\n/g, '\\n'));
+      
+      // Skip the initial welcome message (already written during initialization)
+      if (i === 0 && output.content.includes("Welcome to Codex IDE")) {
+        console.log("[TerminalPanel] Skipping welcome message (already written)");
+        continue;
+      }
+      
+      try {
+        terminal.write(output.content);
+        
+        // CRITICAL: Force refresh after each write
+        terminal.refresh(0, terminal.rows - 1);
+        
+        console.log("[TerminalPanel] Successfully wrote output", i, 
+                    "rows:", terminal.rows, "cols:", terminal.cols);
+      } catch (error) {
+        console.error("[TerminalPanel] Error writing output", i, ":", error);
+      }
+    }
+    
+    // Update last processed index
+    lastOutputIndexRef.current = terminalOutput.length;
+    console.log("[TerminalPanel] Updated lastIndex to:", lastOutputIndexRef.current);
+  }, [terminalOutput]); // Re-run when terminalOutput changes
 
   const handleCommand = (terminal: Terminal, command: string) => {
     const parts = command.split(" ");
@@ -186,7 +347,17 @@ export default function TerminalPanel() {
           <X size={14} />
         </button>
       </div>
-      <div ref={terminalRef} className="flex-1 overflow-hidden" />
+      <div 
+        ref={terminalRef} 
+        className="flex-1 overflow-hidden"
+        style={{ 
+          minHeight: '200px',
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          position: 'relative'
+        }}
+      />
     </div>
   );
 }

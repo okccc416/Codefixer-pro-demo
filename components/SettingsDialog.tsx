@@ -21,7 +21,7 @@ export default function SettingsDialog() {
 
   const [localApiKey, setLocalApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<"openai" | "anthropic">("openai");
+  const [selectedProvider, setSelectedProvider] = useState<"openai" | "google">("google");
 
   useEffect(() => {
     if (isSettingsOpen) {
@@ -57,7 +57,7 @@ export default function SettingsDialog() {
             Settings - API Configuration
           </DialogTitle>
           <DialogDescription className="text-zinc-400">
-            Configure your API key to enable AI-powered features like code execution and fixes.
+            Configure your AI provider and API key. Google Gemini has a generous free tier!
           </DialogDescription>
         </DialogHeader>
 
@@ -68,6 +68,20 @@ export default function SettingsDialog() {
               API Provider
             </Label>
             <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedProvider("google")}
+                className={`flex-1 px-4 py-3 rounded-lg border transition-all ${
+                  selectedProvider === "google"
+                    ? "bg-green-600/20 border-green-600 text-green-400"
+                    : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-600"
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  {selectedProvider === "google" && <CheckCircle2 size={16} />}
+                  <span className="font-medium">Google Gemini</span>
+                </div>
+                <div className="text-xs mt-1 opacity-70">Free tier + Flash</div>
+              </button>
               <button
                 onClick={() => setSelectedProvider("openai")}
                 className={`flex-1 px-4 py-3 rounded-lg border transition-all ${
@@ -80,21 +94,7 @@ export default function SettingsDialog() {
                   {selectedProvider === "openai" && <CheckCircle2 size={16} />}
                   <span className="font-medium">OpenAI</span>
                 </div>
-                <div className="text-xs mt-1 opacity-70">GPT-3.5, GPT-4</div>
-              </button>
-              <button
-                onClick={() => setSelectedProvider("anthropic")}
-                className={`flex-1 px-4 py-3 rounded-lg border transition-all ${
-                  selectedProvider === "anthropic"
-                    ? "bg-purple-600/20 border-purple-600 text-purple-400"
-                    : "bg-zinc-900 border-zinc-700 text-zinc-400 hover:border-zinc-600"
-                }`}
-              >
-                <div className="flex items-center justify-center gap-2">
-                  {selectedProvider === "anthropic" && <CheckCircle2 size={16} />}
-                  <span className="font-medium">Anthropic</span>
-                </div>
-                <div className="text-xs mt-1 opacity-70">Claude 3</div>
+                <div className="text-xs mt-1 opacity-70">GPT-4o-mini</div>
               </button>
             </div>
           </div>
@@ -102,7 +102,7 @@ export default function SettingsDialog() {
           {/* API Key Input */}
           <div className="space-y-3">
             <Label htmlFor="apiKey" className="text-zinc-200">
-              {selectedProvider === "openai" ? "OpenAI" : "Anthropic"} API Key
+              {selectedProvider === "google" ? "Gemini API Key" : "OpenAI API Key"}
             </Label>
             <div className="relative">
               <Input
@@ -111,9 +111,9 @@ export default function SettingsDialog() {
                 value={localApiKey}
                 onChange={(e) => setLocalApiKey(e.target.value)}
                 placeholder={
-                  selectedProvider === "openai"
-                    ? "sk-..."
-                    : "sk-ant-..."
+                  selectedProvider === "google"
+                    ? "AIza..."
+                    : "sk-..."
                 }
                 className="pr-10 bg-zinc-900 border-zinc-700 text-zinc-100 placeholder:text-zinc-600"
               />
@@ -126,19 +126,27 @@ export default function SettingsDialog() {
               </button>
             </div>
             <p className="text-xs text-zinc-500">
-              Your API key is stored locally and never sent to our servers.
+              {selectedProvider === "google" 
+                ? "Get your free key at ai.google.dev/gemini-api"
+                : "Your API key is stored locally and never sent to our servers."}
             </p>
           </div>
 
           {/* Info Box */}
-          <div className="bg-blue-600/10 border border-blue-600/30 rounded-lg p-4">
-            <h4 className="text-sm font-medium text-blue-400 mb-2">
+          <div className={`border rounded-lg p-4 ${
+            selectedProvider === "google" 
+              ? "bg-green-600/10 border-green-600/30" 
+              : "bg-blue-600/10 border-blue-600/30"
+          }`}>
+            <h4 className={`text-sm font-medium mb-2 ${
+              selectedProvider === "google" ? "text-green-400" : "text-blue-400"
+            }`}>
               🔒 Bring Your Own Key (BYOK)
             </h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Your API key is encrypted and stored only in your browser's local storage. 
-              When you make requests, the key is sent directly to {selectedProvider === "openai" ? "OpenAI" : "Anthropic"}'s 
-              servers via secure headers.
+              Your API key is stored only in your browser's local storage. 
+              Requests go directly to {selectedProvider === "google" ? "Google Gemini" : "OpenAI"} servers.
+              {selectedProvider === "google" && " Gemini offers 15 requests/min for free!"}
             </p>
           </div>
 

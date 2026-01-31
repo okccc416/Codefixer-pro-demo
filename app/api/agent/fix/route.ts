@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText, tool } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { CodeInterpreter } from "@e2b/code-interpreter";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { Sandbox } from "@e2b/code-interpreter";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -52,13 +52,14 @@ async function executePythonCode(code: string): Promise<{
   }
 
   try {
-    const sandbox = await CodeInterpreter.create({
+    const sandbox = await Sandbox.create({
       apiKey: e2bApiKey,
       timeoutMs: 30000, // 30 seconds
     });
 
     try {
-      const execution = await sandbox.notebook.execCell(code);
+      // Execute code using runCode (E2B SDK v2 API)
+      const execution = await sandbox.runCode(code);
 
       // Check for execution errors
       if (execution.error) {
@@ -95,7 +96,8 @@ async function executePythonCode(code: string): Promise<{
         exitCode: 0,
       };
     } finally {
-      await sandbox.close();
+      // Kill sandbox (SDK v2 method)
+      await sandbox.kill();
     }
   } catch (error) {
     return {
@@ -118,13 +120,16 @@ export async function POST(request: NextRequest) {
   const MAX_ATTEMPTS = 3;
 
   try {
-    // Get user's API key from header
-    const userApiKey = request.headers.get("x-user-api-key");
-    if (!userApiKey) {
+    // CRITICAL: Read provider and API key from headers (BYOK)
+    const provider = request.headers.get("x-provider") as "openai" | "google" | null;
+    const userApiKey = request.headers.get("x-api-key");
+
+    // Strict validation: NO fallback to server env vars
+    if (!userApiKey || !provider) {
       return NextResponse.json(
         {
           success: false,
-          error: "API key is required. Please configure your API key in Settings.",
+          error: "Missing API Key or Provider. Please configure in Settings.",
           logs: [],
           attempts: 0,
         } as FixCodeResponse,
@@ -148,16 +153,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine AI provider from API key
-    const isAnthropic = userApiKey.startsWith("sk-ant-");
-    const provider = isAnthropic ? "anthropic" : "openai";
+    // CRITICAL: Initialize AI provider with user's API key (BYOK)
+    // Must explicitly pass apiKey during provider creation, NOT during model call
+    let model;
+    
+    if (provider === "google") {
+      // Create Google provider instance with explicit API key
+      const google = createGoogleGenerativeAI({
+        apiKey: userApiKey,  // CRITICAL: Pass user's key here!
+      });
+      // Use latest Gemini 2.5 Flash model (2026)
+      model = google("gemini-2.5-flash");
+    } else {
+      // Create OpenAI provider instance with explicit API key
+      const openai = createOpenAI({
+        apiKey: userApiKey,  // CRITICAL: Pass user's key here!
+      });
+      model = openai("gpt-4o-mini");
+    }
 
-    // Initialize AI model with user's API key
-    const model = isAnthropic
-      ? anthropic("claude-3-5-sonnet-20241022", { apiKey: userApiKey })
-      : openai("gpt-4o", { apiKey: userApiKey });
-
-    console.log(`[Agent] Starting fix with ${provider} (attempt 1/${MAX_ATTEMPTS})`);
+    console.log(`[Agent] Starting fix with ${provider} (user's API key) - attempt 1/${MAX_ATTEMPTS}`);
 
     // Add initial log
     logs.push({

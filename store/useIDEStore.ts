@@ -60,7 +60,7 @@ interface IDEState {
   
   // API Key Management
   apiKey: string;
-  apiProvider: "openai" | "anthropic";
+  apiProvider: "openai" | "google";
   
   // Actions
   setFileTree: (tree: FileNode[]) => void;
@@ -78,7 +78,7 @@ interface IDEState {
   // Settings Actions
   setSettingsOpen: (open: boolean) => void;
   setApiKey: (key: string) => void;
-  setApiProvider: (provider: "openai" | "anthropic") => void;
+  setApiProvider: (provider: "openai" | "google") => void;
   hasApiKey: () => boolean;
   
   // Diff View Actions
@@ -217,7 +217,7 @@ export const useIDEStore = create<IDEState>()(
       
       // API Key State
       apiKey: "",
-      apiProvider: "openai",
+      apiProvider: "google",  // Default to Google (free tier)
 
   // File System Actions
   setFileTree: (tree) => set({ fileTree: tree }),
