@@ -1,0 +1,37 @@
+graph TD
+    %% 定义样式
+    classDef client fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef server fill:#fff3e0,stroke:#ff6f00,stroke-width:2px;
+    classDef ai fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,stroke-dasharray: 5 5;
+    classDef sandbox fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5;
+
+    subgraph Client_Side [💻 Frontend (Next.js Client)]
+        UI[Monaco Editor & Terminal UI]:::client
+        StreamParser[Stream Parser]:::client
+    end
+
+    subgraph Server_Side [⚙️ Backend (Next.js API Routes)]
+        Orchestrator[Agent Orchestrator]:::server
+        PromptEng[Prompt Engineer System]:::server
+        DiffGen[Diff Generator]:::server
+    end
+
+    subgraph External_Services [☁️ Cloud Infrastructure]
+        Gemini[Google Gemini 2.5 Flash\n(Reasoning & Code Gen)]:::ai
+        E2B[E2B Code Interpreter\n(Firecracker microVM)]:::sandbox
+    end
+
+    %% 连线关系
+    UI -- "1. 提交报错代码 & 错误日志" --> Orchestrator
+    Orchestrator -- "2. 组装 Context" --> PromptEng
+    PromptEng -- "3. 发送 Prompt" --> Gemini
+    Gemini -- "4. 返回修复代码" --> Orchestrator
+    Orchestrator -- "5. 注入沙箱执行 (Dry Run)" --> E2B
+    E2B -- "6. 返回执行结果 (Stdout/Stderr)" --> Orchestrator
+    Orchestrator -- "7. 验证成功? (Self-Correction)" --> Orchestrator
+    Orchestrator -- "8. 流式返回结果 (Stream Response)" --> StreamParser
+    StreamParser -- "9. 渲染 Diff View" --> UI
+
+    %% 备注
+    linkStyle 4,5 stroke:#2e7d32,stroke-width:3px;
+    linkStyle 6 stroke:#ff6f00,stroke-width:3px;
