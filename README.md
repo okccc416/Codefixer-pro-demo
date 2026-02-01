@@ -2,6 +2,97 @@
 
 A professional, VS Code-like IDE interface built with modern web technologies.
 
+## 🏗 System Architecture
+
+The following diagram illustrates the data flow and the "Self-Healing" verification loop implemented in CodeFixer Pro.
+
+```mermaid
+graph TD
+    %% 定义样式
+    classDef client fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef server fill:#fff3e0,stroke:#ff6f00,stroke-width:2px;
+    classDef ai fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,stroke-dasharray: 5 5;
+    classDef sandbox fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5;
+
+    subgraph Client_Side [💻 Frontend (Next.js Client)]
+        UI[Monaco Editor & Terminal UI]:::client
+        StreamParser[Stream Parser]:::client
+    end
+
+    subgraph Server_Side [⚙️ Backend (Next.js API Routes)]
+        Orchestrator[Agent Orchestrator]:::server
+        PromptEng[Prompt Engineer System]:::server
+        DiffGen[Diff Generator]:::server
+    end
+
+    subgraph External_Services [☁️ Cloud Infrastructure]
+        Gemini[Google Gemini 2.5 Flash\n(Reasoning & Code Gen)]:::ai
+        E2B[E2B Code Interpreter\n(Firecracker microVM)]:::sandbox
+    end
+
+    %% 连线关系
+    UI -- "1. 提交报错代码 & 错误日志" --> Orchestrator
+    Orchestrator -- "2. 组装 Context" --> PromptEng
+    PromptEng -- "3. 发送 Prompt" --> Gemini
+    Gemini -- "4. 返回修复代码" --> Orchestrator
+    Orchestrator -- "5. 注入沙箱执行 (Dry Run)" --> E2B
+    E2B -- "6. 返回执行结果 (Stdout/Stderr)" --> Orchestrator
+    Orchestrator -- "7. 验证成功? (Self-Correction)" --> Orchestrator
+    Orchestrator -- "8. 流式返回结果 (Stream Response)" --> StreamParser
+    StreamParser -- "9. 渲染 Diff View" --> UI
+
+    %% 备注
+    linkStyle 4,5 stroke:#2e7d32,stroke-width:3px;
+    linkStyle 6 stroke:#ff6f00,stroke-width:3px;
+```
+
+## 🔄 Interaction Flow (Sequence)
+
+Highlights the **Streamed Response** and **E2B Sandbox Verification** process:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as 👤 Developer
+    participant FE as 🖥️ Next.js Frontend
+    participant API as ⚙️ API Route (Edge)
+    participant LLM as 🧠 Gemini 2.5 Flash
+    participant VM as 📦 E2B Sandbox (Linux)
+
+    Note over User, FE: 场景: 用户代码运行报错 (Runtime Error)
+
+    User->>FE: 点击 "Fix with AI" 按钮
+    FE->>API: POST /api/fix (代码 + 错误日志)
+    
+    rect rgb(240, 248, 255)
+        Note right of API: 阶段 1: 根本原因分析
+        API->>LLM: 发送 Prompt (Analyze & Fix)
+        LLM-->>API: 返回: 修复思路 + 代码补丁
+        API-->>FE: Stream Text: "正在分析错误原因..." (降低等待焦虑)
+    end
+
+    rect rgb(255, 245, 238)
+        Note right of API: 阶段 2: 沙箱闭环验证 (关键差异点)
+        API->>VM: 初始化 Firecracker microVM
+        API->>VM: 写入修复后的代码
+        API->>VM: 执行代码 (exec)
+        VM-->>API: 返回执行结果 (Exit Code 0 / 1)
+        
+        alt 验证失败 (Exit Code != 0)
+            API->>LLM: 反馈: "修复失败，错误是..." (Self-Healing)
+            LLM-->>API: 重新生成修复代码 v2
+            API->>VM: 再次验证 v2
+        else 验证成功
+            API->>API: 标记为 Verified
+        end
+    end
+
+    API-->>FE: Stream JSON: { original, fixed, explanation }
+    FE->>User: 展示 Diff View (左红右绿)
+    
+    User->>FE: 点击 "Apply Fix"
+    FE->>FE: 更新编辑器代码
+```
 ## 🚀 Features
 
 - **📁 File Explorer**: Tree view with folder expansion/collapse
