@@ -14,20 +14,22 @@ graph TD
     classDef ai fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,stroke-dasharray: 5 5;
     classDef sandbox fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,stroke-dasharray: 5 5;
 
-    subgraph Client_Side [💻 Frontend (Next.js Client)]
-        UI[Monaco Editor & Terminal UI]:::client
-        StreamParser[Stream Parser]:::client
+    %% 修复点：subgraph 的名称加上了双引号
+    subgraph Client_Side ["💻 Frontend (Next.js Client)"]
+        UI["Monaco Editor & Terminal UI"]:::client
+        StreamParser["Stream Parser"]:::client
     end
 
-    subgraph Server_Side [⚙️ Backend (Next.js API Routes)]
-        Orchestrator[Agent Orchestrator]:::server
-        PromptEng[Prompt Engineer System]:::server
-        DiffGen[Diff Generator]:::server
+    subgraph Server_Side ["⚙️ Backend (Next.js API Routes)"]
+        Orchestrator["Agent Orchestrator"]:::server
+        PromptEng["Prompt Engineer System"]:::server
+        DiffGen["Diff Generator"]:::server
     end
 
-    subgraph External_Services [☁️ Cloud Infrastructure]
-        Gemini[Google Gemini 2.5 Flash\n(Reasoning & Code Gen)]:::ai
-        E2B[E2B Code Interpreter\n(Firecracker microVM)]:::sandbox
+    subgraph External_Services ["☁️ Cloud Infrastructure"]
+        %% 修复点：节点描述中包含换行符和括号，也加上双引号以防万一
+        Gemini["Google Gemini 2.5 Flash\n(Reasoning & Code Gen)"]:::ai
+        E2B["E2B Code Interpreter\n(Firecracker microVM)"]:::sandbox
     end
 
     %% 连线关系
